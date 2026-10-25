@@ -1,256 +1,241 @@
-// Sequência de edição do anúncio. Cada cena tem uma foto real do imóvel, um título
-// de tela e a narração correspondente (public/narracao/<id>.wav).
-// `vozFrames` é a duração medida de cada narração a 30 fps (ver producao/gerar-narracao.sh).
+// Cadastro central do anúncio (v2): cenas, fotos, textos, tempos, transição e áudio.
+// Os cortes (`corte`, em frames do vídeo a 30 fps) caem nas pausas da narração
+// ElevenLabs e, quando a pausa permite, no tempo da trilha (~110 BPM).
+// Ver producao/mapa-de-cortes.md para a correspondência frase → cena.
 
 export const FPS = 30;
-// Duração das transições entre cenas (sobreposição).
-export const TRANSICAO = 10;
-// A voz começa depois que a transição de entrada termina.
-export const ENTRADA_VOZ = TRANSICAO;
-// Respiro entre o fim de uma fala e o começo da próxima.
-export const RESPIRO = 8;
-// Tempo extra no final para ler o CTA de encerramento.
-export const SEGURA_FINAL = 60;
+// Crossfade único entre todas as cenas (consistência visual).
+export const TRANSICAO = 8;
+// A narração começa 0,5 s após o início do vídeo.
+export const INICIO_NARRACAO = 15;
+// Fim da fala no tempo do vídeo (52,92 s de áudio + início).
+export const FIM_NARRACAO = 1603;
+// Tempo de leitura do encerramento após a última fala.
+export const DURACAO_TOTAL = 1703;
+
+export const AUDIO = {
+  narracao: 'audio/narracao.m4a',
+  trilha: 'audio/trilha-sonora.mp3',
+  // volume da trilha antes/depois da fala e como "cama" sob a voz
+  trilhaCheia: 0.42,
+  trilhaSobVoz: 0.16,
+  volumeNarracao: 1,
+};
 
 export type Movimento = {
-  // escala inicial e final (1 = foto preenchendo a tela sem cortes extras)
+  // escala inicial e final; mantida em até ~1,08 para não ampliar demais fotos de 902 px
   readonly zoom: [number, number];
-  // deslocamento em % do quadro, inicial e final
+  // deslocamento em % do quadro (limitado automaticamente à sobra do zoom)
   readonly x: [number, number];
   readonly y: [number, number];
 };
 
-export type TipoCena = 'foto' | 'fachada-abertura' | 'localizacao' | 'fachada-encerramento';
+export type TipoCena = 'fachada-abertura' | 'foto' | 'cta' | 'localizacao' | 'encerramento';
 
 export type Cena = {
   readonly id: string;
   readonly tipo: TipoCena;
+  // frame do vídeo em que a cena assume a tela (meio do crossfade)
+  readonly corte: number;
   readonly foto: string;
-  readonly ambiente: string;
+  readonly kicker: string;
   readonly titulo: string;
-  readonly narracao: string;
-  // Em cenas de CTA o título já é a frase falada, então a legenda é omitida.
-  readonly legenda: boolean;
-  readonly vozFrames: number;
+  // frame do vídeo em que o título entra (sincronizado com a palavra-chave falada)
+  readonly tituloEm: number;
   readonly movimento: Movimento;
-  readonly transicaoEntrada: 'fade' | 'slide-baixo' | 'wipe';
 };
 
+const F = 'fotos-tratadas/';
+const C = 'fotos-corrigidas-tratadas/';
+
 export const CENAS: Cena[] = [
+  // A. IMPACTO INICIAL — "Já imaginou viver em uma casa que une conforto,"
   {
-    id: '01-abertura',
+    id: 'fachada',
     tipo: 'fachada-abertura',
-    foto: 'fotos-tratadas/01-fachada-rua.jpg',
-    ambiente: 'Santa Rita · Santa Luzia/MG',
+    corte: 0,
+    foto: `${F}01-fachada-rua.jpg`,
+    kicker: 'Santa Rita · Santa Luzia/MG',
     titulo: 'Conheça esta oportunidade em Santa Luzia!',
-    narracao: 'Conheça esta oportunidade em Santa Luzia!',
-    legenda: false,
-    vozFrames: 89,
-    movimento: {zoom: [1.22, 1.0], x: [-4, 0], y: [0, 0]},
-    transicaoEntrada: 'fade',
+    tituloEm: 3,
+    movimento: {zoom: [1.16, 1.0], x: [-3, 0], y: [0, 0]},
   },
+  // "espaço e praticidade."
   {
-    id: '02-sobrado',
+    id: 'area-coberta',
     tipo: 'foto',
-    foto: 'fotos-tratadas/02-sobrado.jpg',
-    ambiente: 'Fachada',
+    corte: 108,
+    foto: `${F}03-area-coberta.jpg`,
+    kicker: 'Chegada',
+    titulo: 'Conforto, espaço e praticidade',
+    tituloEm: 112,
+    movimento: {zoom: [1.0, 1.06], x: [0, 0], y: [0, 0]},
+  },
+  // B. APRESENTAÇÃO — "Esta residência, no bairro Santa Rita, em Santa Luzia, oferece dois pavimentos"
+  {
+    id: 'sobrado',
+    tipo: 'foto',
+    corte: 179,
+    foto: `${F}02-sobrado.jpg`,
+    kicker: 'Bairro Santa Rita',
     titulo: 'Dois pavimentos',
-    narracao: 'Uma casa de dois andares, com fachada moderna.',
-    legenda: true,
-    vozFrames: 77,
-    movimento: {zoom: [1.12, 1.02], x: [0, 0], y: [3, 0]},
-    transicaoEntrada: 'fade',
+    tituloEm: 300,
+    movimento: {zoom: [1.08, 1.02], x: [0, 0], y: [-3.5, 1]},
   },
+  // "e ambientes com possibilidades"
   {
-    id: '03-area-coberta',
+    id: 'entrada',
     tipo: 'foto',
-    foto: 'fotos-tratadas/03-area-coberta.jpg',
-    ambiente: 'Chegada',
-    titulo: 'Área coberta',
-    narracao: 'Na chegada, uma área coberta e portas de vidro.',
-    legenda: true,
-    vozFrames: 83,
-    movimento: {zoom: [1.02, 1.1], x: [5, -5], y: [0, 0]},
-    transicaoEntrada: 'fade',
+    corte: 343,
+    foto: `${F}04-entrada.jpg`,
+    kicker: 'Entrada',
+    titulo: 'Ambientes bem iluminados',
+    tituloEm: 347,
+    movimento: {zoom: [1.0, 1.06], x: [0, 0], y: [0, 0]},
   },
+  // "para diferentes momentos da vida."
   {
-    id: '04-entrada',
+    id: 'cozinha',
     tipo: 'foto',
-    foto: 'fotos-tratadas/04-entrada.jpg',
-    ambiente: 'Entrada',
-    titulo: 'Acabamento que impressiona',
-    narracao: 'Ao entrar, o piso marmorizado valoriza cada ambiente.',
-    legenda: true,
-    vozFrames: 105,
-    movimento: {zoom: [1.02, 1.14], x: [0, 0], y: [0, -2]},
-    transicaoEntrada: 'fade',
+    corte: 398,
+    foto: `${F}07-cozinha.jpg`,
+    kicker: 'Cozinha',
+    titulo: 'Bancada em pedra',
+    tituloEm: 402,
+    movimento: {zoom: [1.06, 1.0], x: [1, -1], y: [0, 0]},
   },
+  // "A sala valoriza os acabamentos,"
   {
-    id: '05-sala',
+    id: 'sala',
     tipo: 'foto',
-    foto: 'fotos-tratadas/05-sala.jpg',
-    ambiente: 'Sala',
-    titulo: 'Sala clara e acolhedora',
-    narracao: 'A sala é clara e pronta para receber quem você ama.',
-    legenda: true,
-    vozFrames: 96,
-    movimento: {zoom: [1.04, 1.14], x: [-2, 2], y: [2, 0]},
-    transicaoEntrada: 'fade',
+    corte: 457,
+    foto: `${F}05-sala.jpg`,
+    kicker: 'Sala',
+    titulo: 'Acabamentos valorizados',
+    tituloEm: 461,
+    movimento: {zoom: [1.0, 1.07], x: [0, 0], y: [1, 0]},
   },
+  // C. CONFORTO — "enquanto a escada com guarda-corpo de vidro"
   {
-    id: '06-escada',
+    id: 'escada',
     tipo: 'foto',
-    foto: 'fotos-tratadas/06-escada.jpg',
-    ambiente: 'Escada',
+    corte: 523,
+    foto: `${F}06-escada.jpg`,
+    kicker: 'Escada',
     titulo: 'Guarda-corpo em vidro',
-    narracao: 'A escada, com guarda-corpo de vidro, traz leveza.',
-    legenda: true,
-    vozFrames: 106,
-    movimento: {zoom: [1.12, 1.04], x: [-3, 2], y: [3, -2]},
-    transicaoEntrada: 'fade',
+    tituloEm: 540,
+    movimento: {zoom: [1.07, 1.01], x: [-1, 1], y: [1, -1]},
   },
+  // "traz um toque moderno ao ambiente."
   {
-    id: '07-cozinha',
+    id: 'escada-subida',
     tipo: 'foto',
-    foto: 'fotos-tratadas/07-cozinha.jpg',
-    ambiente: 'Cozinha',
-    titulo: 'Cozinha funcional',
-    narracao: 'Na cozinha, bancada em pedra e cuba de inox.',
-    legenda: true,
-    vozFrames: 132,
-    movimento: {zoom: [1.03, 1.13], x: [3, -2], y: [0, 2]},
-    transicaoEntrada: 'wipe',
+    corte: 593,
+    foto: `${F}extra-escada-subida.jpg`,
+    kicker: 'Escada',
+    titulo: 'Toque moderno',
+    tituloEm: 597,
+    movimento: {zoom: [1.0, 1.07], x: [0, 0], y: [2, -2]},
   },
+  // "Na parte superior,"
   {
-    id: '08-area-servico',
+    id: 'hall-superior',
     tipo: 'foto',
-    foto: 'fotos-tratadas/08-area-servico.jpg',
-    ambiente: 'Área de serviço',
-    titulo: 'Área de serviço',
-    narracao: 'E uma área de serviço com pia e piso decorado.',
-    legenda: true,
-    vozFrames: 98,
-    movimento: {zoom: [1.1, 1.02], x: [0, 0], y: [-2, 2]},
-    transicaoEntrada: 'fade',
+    corte: 654,
+    foto: `${C}09-hall-superior.jpg`,
+    kicker: 'Andar superior',
+    titulo: 'Hall de circulação',
+    tituloEm: 658,
+    movimento: {zoom: [1.0, 1.05], x: [0, 0], y: [0, 1]},
   },
+  // "os quartos oferecem espaço para a sua família"
   {
-    id: '09-hall-superior',
+    id: 'quarto-varanda',
     tipo: 'foto',
-    foto: 'fotos-tratadas/09-hall-superior.jpg',
-    ambiente: 'Andar superior',
-    titulo: 'Andar superior',
-    narracao: 'No andar de cima, um hall dá acesso aos quartos.',
-    legenda: true,
-    vozFrames: 84,
-    movimento: {zoom: [1.02, 1.12], x: [0, 1], y: [0, 2]},
-    transicaoEntrada: 'slide-baixo',
+    corte: 698,
+    foto: `${F}11-quarto-varanda.jpg`,
+    kicker: 'Quartos',
+    titulo: 'Espaço para sua família',
+    tituloEm: 718,
+    movimento: {zoom: [1.0, 1.07], x: [1, -1], y: [0, 0]},
   },
+  // "e novas possibilidades para o seu dia a dia."
   {
-    id: '10-capitulo',
+    id: 'quarto-janela',
     tipo: 'foto',
-    foto: 'fotos-tratadas/10-corredor-varanda.jpg',
-    ambiente: 'Seu novo lar',
-    titulo: 'Imagine seu próximo capítulo neste lugar.',
-    narracao: 'Imagine seu próximo capítulo neste lugar.',
-    legenda: false,
-    vozFrames: 116,
-    movimento: {zoom: [1.0, 1.24], x: [0, 1], y: [0, 5]},
-    transicaoEntrada: 'fade',
+    corte: 778,
+    foto: `${F}13-quarto-janela.jpg`,
+    kicker: 'Quartos',
+    titulo: 'Novas possibilidades',
+    tituloEm: 782,
+    movimento: {zoom: [1.07, 1.0], x: [-1, 1], y: [0, 0]},
   },
+  // "A casa também conta com banheiro"
   {
-    id: '11-quarto-varanda',
+    id: 'banheiro',
     tipo: 'foto',
-    foto: 'fotos-tratadas/11-quarto-varanda.jpg',
-    ambiente: 'Quarto',
-    titulo: 'Quartos com luz natural',
-    narracao: 'Quartos claros, com piso amadeirado e saída para a varanda.',
-    legenda: true,
-    vozFrames: 108,
-    movimento: {zoom: [1.04, 1.14], x: [2, -2], y: [0, 1]},
-    transicaoEntrada: 'fade',
-  },
-  {
-    id: '12-quarto-banheiro',
-    tipo: 'foto',
-    foto: 'fotos-tratadas/12-quarto-banheiro.jpg',
-    ambiente: 'Quarto',
-    titulo: 'Banheiro próprio e varanda',
-    narracao: 'Este quarto tem banheiro próprio e acesso à varanda.',
-    legenda: true,
-    vozFrames: 83,
-    movimento: {zoom: [1.12, 1.03], x: [-2, 2], y: [2, 0]},
-    transicaoEntrada: 'fade',
-  },
-  {
-    id: '13-quarto-janela',
-    tipo: 'foto',
-    foto: 'fotos-tratadas/13-quarto-janela.jpg',
-    ambiente: 'Quarto',
-    titulo: 'Cheio de possibilidades',
-    narracao: 'Mais um quarto, iluminado e cheio de possibilidades.',
-    legenda: true,
-    vozFrames: 100,
-    movimento: {zoom: [1.02, 1.12], x: [-2, 2], y: [0, 0]},
-    transicaoEntrada: 'fade',
-  },
-  {
-    id: '14-banheiro',
-    tipo: 'foto',
-    foto: 'fotos-tratadas/14-banheiro.jpg',
-    ambiente: 'Banheiro',
+    corte: 850,
+    foto: `${C}14-banheiro.jpg`,
+    kicker: 'Banheiro',
     titulo: 'Revestimento decorativo',
-    narracao: 'No banheiro, revestimento decorativo.',
-    legenda: true,
-    vozFrames: 82,
-    movimento: {zoom: [1.02, 1.12], x: [0, 0], y: [0, -3]},
-    transicaoEntrada: 'wipe',
+    tituloEm: 854,
+    movimento: {zoom: [1.0, 1.06], x: [0, 0], y: [0, -1]},
   },
+  // "e acesso à varanda."
   {
-    id: '15-localizacao',
+    id: 'quarto-banheiro-varanda',
+    tipo: 'foto',
+    corte: 910,
+    foto: `${C}12-quarto-banheiro.jpg`,
+    kicker: 'Varanda',
+    titulo: 'Acesso à varanda',
+    tituloEm: 912,
+    movimento: {zoom: [1.0, 1.05], x: [0, 1], y: [0, 1]},
+  },
+  // D. LOCALIZAÇÃO — "E a localização ajuda na rotina. ..." (cartões em src/localizacao.ts)
+  {
+    id: 'localizacao',
     tipo: 'localizacao',
-    foto: 'fotos-tratadas/02-sobrado.jpg',
-    ambiente: 'Localização',
-    titulo: 'Mais praticidade para a sua rotina.',
-    narracao: 'No bairro Santa Rita. Mais praticidade para a sua rotina.',
-    legenda: false,
-    vozFrames: 141,
-    movimento: {zoom: [1.15, 1.05], x: [0, 0], y: [-3, 0]},
-    transicaoEntrada: 'fade',
+    corte: 954,
+    foto: `${F}02-sobrado.jpg`,
+    kicker: 'Localização',
+    titulo: 'A localização ajuda na rotina',
+    tituloEm: 960,
+    movimento: {zoom: [1.08, 1.0], x: [0, 0], y: [-2, 0]},
   },
+  // "Uma oportunidade para quem busca espaço e praticidade em Santa Luzia."
   {
-    id: '16-encerramento',
-    tipo: 'fachada-encerramento',
-    foto: 'fotos-tratadas/01-fachada-rua.jpg',
-    ambiente: 'Agende sua visita',
-    titulo: 'Gostou? Entre em contato e agende sua visita!',
-    narracao: 'Gostou? Entre em contato e agende sua visita!',
-    legenda: false,
-    vozFrames: 112,
-    movimento: {zoom: [1.0, 1.08], x: [0, 0], y: [0, 0]},
-    transicaoEntrada: 'fade',
+    id: 'oportunidade',
+    tipo: 'cta',
+    corte: 1292,
+    foto: `${F}10-corredor-varanda.jpg`,
+    kicker: 'Seu novo lar',
+    titulo: 'Espaço e praticidade em Santa Luzia',
+    tituloEm: 1300,
+    movimento: {zoom: [1.0, 1.08], x: [0, 0], y: [0, 3]},
+  },
+  // E. CHAMADA PARA AÇÃO — "Gostou? Entre em contato e agende sua visita. Seu próximo capítulo pode começar aqui."
+  {
+    id: 'encerramento',
+    tipo: 'encerramento',
+    corte: 1456,
+    foto: `${F}01-fachada-rua.jpg`,
+    kicker: 'Gostou?',
+    titulo: 'Agende sua visita',
+    tituloEm: 1462,
+    movimento: {zoom: [1.0, 1.06], x: [0, 0], y: [0, 0]},
   },
 ];
 
-export const duracaoCena = (cena: Cena, indice: number) =>
-  ENTRADA_VOZ +
-  cena.vozFrames +
-  (indice === CENAS.length - 1 ? SEGURA_FINAL : RESPIRO);
+// Frase de assinatura no encerramento, junto com "Seu próximo capítulo pode começar aqui."
+export const ASSINATURA = {texto: 'Seu próximo capítulo pode começar aqui.', em: 1528};
 
-export const DURACAO_TOTAL =
-  CENAS.reduce((soma, cena, i) => soma + duracaoCena(cena, i), 0) -
-  TRANSICAO * (CENAS.length - 1);
+// Duração de cada TransitionSeries.Sequence de modo que o meio do crossfade fique no corte.
+export const duracaoCena = (i: number) => {
+  const inicio = i === 0 ? 0 : CENAS[i].corte - TRANSICAO / 2;
+  const fim = i === CENAS.length - 1 ? DURACAO_TOTAL : CENAS[i + 1].corte + TRANSICAO / 2;
+  return fim - inicio;
+};
 
-// Janelas de fala no tempo global, usadas para abaixar a trilha sob a voz.
-export const JANELAS_DE_VOZ: [number, number][] = CENAS.reduce<{
-  inicio: number;
-  janelas: [number, number][];
-}>(
-  (acc, cena, i) => {
-    const comeco = acc.inicio + ENTRADA_VOZ;
-    return {
-      inicio: acc.inicio + duracaoCena(cena, i) - TRANSICAO,
-      janelas: [...acc.janelas, [comeco, comeco + cena.vozFrames]],
-    };
-  },
-  {inicio: 0, janelas: []},
-).janelas;
+// Frame do vídeo em que a sequência da cena começa (para converter tempos absolutos).
+export const inicioCena = (i: number) => (i === 0 ? 0 : CENAS[i].corte - TRANSICAO / 2);

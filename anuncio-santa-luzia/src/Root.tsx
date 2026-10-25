@@ -12,9 +12,8 @@ export const RemotionRoot: React.FC = () => {
       width={1080}
       height={1920}
       defaultProps={{
+        contato: null,
         preco: null,
-        whatsapp: null,
-        pontosProximos: [],
       }}
     />
   );

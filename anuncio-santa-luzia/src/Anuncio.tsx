@@ -1,13 +1,20 @@
 import React from 'react';
-import {AbsoluteFill, interpolate, staticFile, useCurrentFrame} from 'remotion';
+import {AbsoluteFill, interpolate, Sequence, staticFile, useCurrentFrame} from 'remotion';
 import {Audio} from '@remotion/media';
 import {loadFont} from '@remotion/fonts';
-import {linearTiming, TransitionPresentation, TransitionSeries} from '@remotion/transitions';
+import {linearTiming, TransitionSeries} from '@remotion/transitions';
 import {fade} from '@remotion/transitions/fade';
-import {slide} from '@remotion/transitions/slide';
-import {wipe} from '@remotion/transitions/wipe';
-import {CENAS, DURACAO_TOTAL, duracaoCena, JANELAS_DE_VOZ, TRANSICAO} from './cenas';
-import {CenaFoto, COR, Narracao, SANS, SERIFA} from './Cena';
+import {
+  AUDIO,
+  CENAS,
+  DURACAO_TOTAL,
+  duracaoCena,
+  FIM_NARRACAO,
+  INICIO_NARRACAO,
+  inicioCena,
+  TRANSICAO,
+} from './cenas';
+import {CenaFoto, COR, SANS, SERIFA} from './Cena';
 import {CenaAbertura, CenaEncerramento, CenaLocalizacao} from './CenasEspeciais';
 
 const fontes: [string, string, string, string][] = [
@@ -17,32 +24,27 @@ const fontes: [string, string, string, string][] = [
   [SANS, 'montserrat-latin-800-normal.woff2', '800', 'normal'],
   [SERIFA, 'playfair-display-latin-600-normal.woff2', '600', 'normal'],
   [SERIFA, 'playfair-display-latin-700-normal.woff2', '700', 'normal'],
+  [SERIFA, 'playfair-display-latin-700-italic.woff2', '700', 'italic'],
 ];
 for (const [family, arquivo, weight, style] of fontes) {
   loadFont({family, url: staticFile(`fontes/${arquivo}`), weight, style});
 }
 
 export type AnuncioProps = {
+  // Telefone/WhatsApp do anunciante, ex.: "WhatsApp (31) 9 0000-0000". null = espaço vazio.
+  readonly contato: string | null;
   readonly preco: string | null;
-  readonly whatsapp: string | null;
-  // Preencha somente com pontos confirmados (ex.: "UPA a X minutos").
-  readonly pontosProximos: string[];
 };
 
-const inicioVoz = JANELAS_DE_VOZ[0][0];
-const fimVoz = JANELAS_DE_VOZ[JANELAS_DE_VOZ.length - 1][1];
-
-// Trilha mais presente na abertura e no final; abaixada como cama durante a narração.
+// Trilha mais presente antes e depois da fala; "cama" baixa durante a narração.
 const volumeTrilha = (f: number) => {
-  const cama = 0.2;
-  const cheio = 0.55;
   const nivel = interpolate(
     f,
-    [0, inicioVoz - 4, inicioVoz + 4, fimVoz, fimVoz + 12],
-    [cheio, cheio, cama, cama, cheio],
+    [0, INICIO_NARRACAO - 6, INICIO_NARRACAO + 6, FIM_NARRACAO, FIM_NARRACAO + 15],
+    [AUDIO.trilhaCheia, AUDIO.trilhaCheia, AUDIO.trilhaSobVoz, AUDIO.trilhaSobVoz, AUDIO.trilhaCheia],
     {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'},
   );
-  const saida = interpolate(f, [DURACAO_TOTAL - 40, DURACAO_TOTAL], [1, 0], {
+  const saida = interpolate(f, [DURACAO_TOTAL - 50, DURACAO_TOTAL], [1, 0], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
@@ -65,36 +67,30 @@ const BarraProgresso: React.FC = () => {
   );
 };
 
-const apresentacao = (
-  tipo: (typeof CENAS)[number]['transicaoEntrada'],
-): TransitionPresentation<Record<string, unknown>> => {
-  if (tipo === 'slide-baixo') {
-    return slide({direction: 'from-bottom'}) as TransitionPresentation<Record<string, unknown>>;
-  }
-  if (tipo === 'wipe') {
-    return wipe({direction: 'from-left'}) as TransitionPresentation<Record<string, unknown>>;
-  }
-  return fade() as TransitionPresentation<Record<string, unknown>>;
-};
-
-export const Anuncio: React.FC<AnuncioProps> = ({preco, whatsapp, pontosProximos}) => {
+export const Anuncio: React.FC<AnuncioProps> = ({contato, preco}) => {
   return (
     <AbsoluteFill style={{backgroundColor: COR.carvao}}>
       <TransitionSeries name="Cenas">
         {CENAS.flatMap((cena, i) => {
-          const duracao = duracaoCena(cena, i);
+          const duracao = duracaoCena(i);
+          const inicio = inicioCena(i);
           const sequencia = (
             <TransitionSeries.Sequence key={cena.id} name={cena.id} durationInFrames={duracao}>
               {cena.tipo === 'fachada-abertura' ? (
                 <CenaAbertura cena={cena} duracao={duracao} />
               ) : cena.tipo === 'localizacao' ? (
-                <CenaLocalizacao cena={cena} duracao={duracao} pontosProximos={pontosProximos} />
-              ) : cena.tipo === 'fachada-encerramento' ? (
-                <CenaEncerramento cena={cena} duracao={duracao} preco={preco} whatsapp={whatsapp} />
+                <CenaLocalizacao cena={cena} duracao={duracao} inicio={inicio} />
+              ) : cena.tipo === 'encerramento' ? (
+                <CenaEncerramento
+                  cena={cena}
+                  duracao={duracao}
+                  inicio={inicio}
+                  contato={contato}
+                  preco={preco}
+                />
               ) : (
-                <CenaFoto cena={cena} duracao={duracao} />
+                <CenaFoto cena={cena} duracao={duracao} inicio={inicio} />
               )}
-              <Narracao id={cena.id} />
             </TransitionSeries.Sequence>
           );
           if (i === 0) {
@@ -103,7 +99,7 @@ export const Anuncio: React.FC<AnuncioProps> = ({preco, whatsapp, pontosProximos
           return [
             <TransitionSeries.Transition
               key={`t-${cena.id}`}
-              presentation={apresentacao(cena.transicaoEntrada)}
+              presentation={fade()}
               timing={linearTiming({durationInFrames: TRANSICAO})}
             />,
             sequencia,
@@ -111,7 +107,10 @@ export const Anuncio: React.FC<AnuncioProps> = ({preco, whatsapp, pontosProximos
         })}
       </TransitionSeries>
       <BarraProgresso />
-      <Audio name="Trilha" src={staticFile('trilha/trilha.wav')} volume={volumeTrilha} />
+      <Sequence name="Narração (ElevenLabs)" from={INICIO_NARRACAO} layout="none">
+        <Audio src={staticFile(AUDIO.narracao)} volume={AUDIO.volumeNarracao} />
+      </Sequence>
+      <Audio name="Trilha sonora" src={staticFile(AUDIO.trilha)} volume={volumeTrilha} />
     </AbsoluteFill>
   );
 };
