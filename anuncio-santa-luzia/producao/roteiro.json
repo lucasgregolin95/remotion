@@ -1,0 +1,66 @@
+[
+  {
+    "id": "01-abertura",
+    "texto": "Conheça esta oportunidade em Santa Luzia!"
+  },
+  {
+    "id": "02-sobrado",
+    "texto": "Uma casa de dois andares, com fachada moderna."
+  },
+  {
+    "id": "03-area-coberta",
+    "texto": "Na chegada, uma área coberta e portas de vidro."
+  },
+  {
+    "id": "04-entrada",
+    "texto": "Ao entrar, o piso marmorizado valoriza cada ambiente."
+  },
+  {
+    "id": "05-sala",
+    "texto": "A sala é clara e pronta para receber quem você ama."
+  },
+  {
+    "id": "06-escada",
+    "texto": "A escada, com guarda-corpo de vidro, traz leveza."
+  },
+  {
+    "id": "07-cozinha",
+    "texto": "Na cozinha, bancada em pedra e cuba de inox."
+  },
+  {
+    "id": "08-area-servico",
+    "texto": "E uma área de serviço com pia e piso decorado."
+  },
+  {
+    "id": "09-hall-superior",
+    "texto": "No andar de cima, um hall dá acesso aos quartos."
+  },
+  {
+    "id": "10-capitulo",
+    "texto": "Imagine seu próximo capítulo neste lugar."
+  },
+  {
+    "id": "11-quarto-varanda",
+    "texto": "Quartos claros, com piso amadeirado e saída para a varanda."
+  },
+  {
+    "id": "12-quarto-banheiro",
+    "texto": "Este quarto tem banheiro próprio e acesso à varanda."
+  },
+  {
+    "id": "13-quarto-janela",
+    "texto": "Mais um quarto, iluminado e cheio de possibilidades."
+  },
+  {
+    "id": "14-banheiro",
+    "texto": "No banheiro, revestimento decorativo."
+  },
+  {
+    "id": "15-localizacao",
+    "texto": "No bairro Santa Rita. Mais praticidade para a sua rotina."
+  },
+  {
+    "id": "16-encerramento",
+    "texto": "Gostou? Entre em contato e agende sua visita!"
+  }
+]
